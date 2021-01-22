@@ -1,0 +1,87 @@
+---
+title: "point_data"
+author: "Stephen Roecker"
+date: "12/30/2020"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+# LDM Sqlite
+
+```{r ldm}
+
+# https://new.cloudvault.usda.gov/index.php/s/eSoPYbWDBQNX2HP
+
+library(DBI)
+library(aqp)
+
+
+con <- dbConnect(RSQLite::SQLite(), "C:/Users/stephen.roecker/Nextcloud/data/ldm/LDM-compact_20200709.sqlite")
+# area <- read.csv("C:/Users/stephen.roecker/Nextcloud/data/ldm/lab_area.txt", stringsAsFactors = FALSE)
+# dbCreateTable(con, "area", area)
+(ldm_names <- dbListTables(con))
+ldm <- lapply(ldm_names, function(x) dbReadTable(con , x))
+names(ldm) <- ldm_names
+dbDisconnect(con)
+
+
+
+# horizon table
+chem_vars <- c("labsampnum", "estimated_organic_carbon", "cec_nh4_ph_7", "base_sat_nh4oac_ph_7")
+phys_vars <- c("labsampnum", "texture_lab", "clay_total", "silt_total", "sand_total", "total_frag_wt_pct_gt_2_mm_ws", "bulk_density_third_bar", "estimated_organic_matter")
+l_vars <- c("labsampnum", "layer_key", "pedon_key", "hzn_desgn", "hzn_top", "hzn_bot", "texture_description", "stratified_textures_flag")
+
+h <- merge(ldm$layer[l_vars],
+           ldm$physical[! duplicated(ldm$physical$labsampnum), phys_vars],
+           by = "labsampnum",
+           all.x = TRUE
+           )
+h <- merge(h, 
+           ldm$chemical[chem_vars],
+           by = "labsampnum",
+           all.x = TRUE
+           )
+
+
+
+# site table
+ncss_vars <- c("site_key", "pedon_key", "pedlabsampnum", "pedoniid", "samp_name", "corr_name", "samp_classdate", "corr_classdate")
+site_vars <- c("site_key", "user_site_id", "latitude_std_decimal_degrees", "longitude_std_decimal_degrees")
+
+s <- merge(ldm$nasis_ncss[ncss_vars],
+           ldm$nasis_site[site_vars],
+           by = "site_key",
+           all.x = TRUE
+           )
+s <- within(s, {
+            samp_classdate = strptime(samp_classdate, format = "%Y-%m-%d %H:%M:%S")
+            corr_classdate = strptime(corr_classdate, format="%Y-%m-%d %H:%M:%S")
+            })
+s <- s[with(s, order(corr_classdate, samp_classdate, decreasing = TRUE)), ]
+
+h <- .checks$.rmHzErrors(h, pedon_id = "pedon_key", hzdept = "hzn_top", hzdepb = "hzn_bot", rmHzErrors = TRUE)
+
+
+h <- h[h$pedon %in% s$pedon_key, ]
+s <- s[s$pedon_key %in% h$pedon_key, ]
+spc <- h
+depths(spc) <- pedon_key ~ hzn_top + hzn_bot
+site(spc) <- s
+
+
+# save(ldm, spc, file = "C:/Users/stephen.roecker/Nextcloud/data/ldm/LDM-compact_20200709.RData")
+
+```
+
+
+# Field pedons
+```{r field-pedons}
+
+load(file = "nasis_pedons_20201112.RData")
+
+
+
+````
+
+
