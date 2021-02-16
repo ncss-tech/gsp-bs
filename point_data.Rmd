@@ -15,6 +15,7 @@ editor_options:
 
 library(DBI)
 library(aqp)
+library(dplyr)
 
 
 con <- dbConnect(RSQLite::SQLite(), "C:/Users/stephen.roecker/Nextcloud/data/ldm/LDM-compact_20200709.sqlite")
@@ -60,28 +61,119 @@ s <- within(s, {
             })
 s <- s[with(s, order(corr_classdate, samp_classdate, decreasing = TRUE)), ]
 
-h <- .checks$.rmHzErrors(h, pedon_id = "pedon_key", hzdept = "hzn_top", hzdepb = "hzn_bot", rmHzErrors = TRUE)
+h2 <- h
+h2 <- h2[h2$pedon %in% s$pedon_key, ]
+s <- s[s$pedon_key %in% h2$pedon_key, ]
 
 
-h <- h[h$pedon %in% s$pedon_key, ]
-s <- s[s$pedon_key %in% h$pedon_key, ]
-spc <- h
-depths(spc) <- pedon_key ~ hzn_top + hzn_bot
-site(spc) <- s
+# fix and remove O horizons ----
+h2 <- validate_depths(h, id = "pedon_key", top = "hzn_top", bot = "hzn_bot")
+
+# bad Os
+idx_bad_o <- unique(subset(h2, ! valid_dep_all & grepl("^O", hzn_desgn))$pedon_key)
+# View(h2[h2$pedon_key %in% idx_bad_o, ])
+
+h2_bad_o_fix <- h2 %>%
+  filter(pedon_key %in% idx_bad_o) %>%
+  mutate(thk = abs(hzn_bot - hzn_top)) %>%
+  group_by(pedon_key) %>%
+  mutate(hzn_top = c(0, cumsum(thk)[-length(thk)]),
+         hzn_bot = cumsum(thk)
+         ) %>%
+  ungroup() %>%
+  mutate(thk = NULL)
+h2_good_o <- h2[! h2$pedon_key %in% idx_bad_o, ]
+
+h22 <- rbind(h2_good_o, h2_bad_o_fix)
+h22 <- h22[, !grepl("^valid_", names(h22))]
 
 
-# save(ldm, spc, file = "C:/Users/stephen.roecker/Nextcloud/data/ldm/LDM-compact_20200709.RData")
+# remove Os
+idx_o <- unique(subset(h22, grepl("^O", hzn_desgn))$pedon_key)
+
+h22_o <- h22 %>%
+  filter(pedon_key %in% idx_o) %>%
+  mutate(thk = abs(hzn_bot - hzn_top),
+         ) %>%
+  group_by(pedon_key) %>%
+  # filter top O horizons
+  filter(between(row_number() ,grep("^O", hzn_desgn, invert = TRUE)[1], n())) %>%
+  mutate(hzn_top = c(0, cumsum(thk)[-length(thk)]),
+         hzn_bot = cumsum(thk)
+         ) %>%
+  ungroup() %>%
+  mutate(thk = NULL)
+
+h22 <- rbind(h22_o, h22[!h22$pedon_key %in% idx_o, ])
+
+
+h222 <- validate_depths(h22, id = "pedon_key", top = "hzn_top", bot = "hzn_bot", order = TRUE, pad_bot = TRUE, rmHzErrors = TRUE)
+
+
+# extract 0-25cm
+h222_seg <- segment(h222, intervals = c(0, 25), hzdepcols = c("hzn_top", "hzn_bot"))
+idx_max <- aggregate(hzn_top ~ pedon_key, data = h222_seg, FUN = function(x) max(x, na.rm = TRUE) <= 25, na.action = na.pass)
+h222_seg <- subset(h222_seg, pedon_key %in% idx_max$pedon_key[idx_max$hzn_top == TRUE])
+
+
+# build SPC ----
+ldm_bs <- h222_seg
+depths(ldm_bs) <- pedon_key ~ hzn_top + hzn_bot
+site(ldm_bs) <- s
+
+# save(ldm, ldm_bs, file = "G:/Box/Box Sync/data/LDM-compact_20200709.RData")
 
 ```
 
 
 # Field pedons
+
 ```{r field-pedons}
 
+# load pedons
+load(file = "G:/Box/Box Sync/data/LDM-compact_20200709.RData")
+lp <- ldm_bs; rm(ldm_bs)
+
 load(file = "nasis_pedons_20201112.RData")
+fp <- spc
 
 
+# filter duplicates ----
+s <- site(fp)
+s$classdate <- strptime(s$classdate, "%Y-%M-%d")
+s <- s[order(s$pedlabsampnum, s$classtype, s$classdate, method = "radix", decreasing = c(FALSE, FALSE, TRUE)), ]
+peiid_nodups <- subset(s, ! duplicated(pedlabsampnum))$peiid
 
-````
+
+idx_bs <- which(fp$pedlabsampnum %in% lp$pedlabsampnum & site(fp)$peiid %in% peiid_nodups)
+fp_bs <- fp[idx_bs, ]
 
 
+# merge lab and field pedons
+vars <- c("peiid", "pedlabsampnum")
+s <- site(fp_bs)[vars]
+vars <- c("peiid", "hzname", "hzdept", "hzdepb", "d_hue", "d_value", "d_chroma", "m_hue", "m_value", "m_chroma")
+h <- horizons(fp_bs)[vars]
+h <- left_join(s, h, by = "peiid")
+
+ls <- site(lp)[c("pedon_key", "pedlabsampnum")]
+lh <- horizons(lp)
+lh$pedon_key <- as.character(lh$pedon_key)
+lh <- left_join(ls, lh, by = "pedon_key")
+
+lh2 <- left_join(lh, h, by = c("pedlabsampnum" = "pedlabsampnum", "hzn_top" = "hzdept", "hzn_bot" = "hzdepb"))
+
+
+horizons(lp) <- h
+
+
+```
+
+
+# Classify BS
+
+```{r}
+
+test <- allocate(lp, CEC = "cec_nh4_ph_7", BS = "base_sat_nh4oac_ph_7", to = "FAO Black Soil")
+
+```
