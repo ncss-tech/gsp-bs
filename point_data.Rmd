@@ -65,9 +65,60 @@ h2 <- h
 h2 <- h2[h2$pedon %in% s$pedon_key, ]
 s <- s[s$pedon_key %in% h2$pedon_key, ]
 
+# build SPC ----
+ldm_bs <- h2
+depths(ldm_bs) <- pedon_key ~ hzn_top + hzn_bot
+site(ldm_bs) <- s
+
+# save(ldm, ldm_bs, file = "G:/Box/Box Sync/data/LDM-compact_20200709.RData")
+
+```
+
+
+# Field pedons
+
+```{r field-pedons}
+
+source('C:/workspace2/github/ncss-tech/gsp-bs/validate.R')
+
+
+# load pedons
+load(file = "G:/Box/Box Sync/data/LDM-compact_20200709.RData")
+lp <- ldm_bs; rm(ldm_bs)
+
+load(file = "nasis_pedons_20201112.RData")
+fp <- spc
+
+
+# filter duplicates ----
+s <- site(fp)
+s$classdate <- strptime(s$classdate, "%Y-%M-%d")
+s <- s[order(s$pedlabsampnum, s$classtype, s$classdate, method = "radix", decreasing = c(FALSE, FALSE, TRUE)), ]
+peiid_nodups <- subset(s, ! duplicated(pedlabsampnum))$peiid
+
+idx_nodups <- which(fp$pedlabsampnum %in% lp$pedlabsampnum & site(fp)$peiid %in% peiid_nodups)
+fp_bs <- fp[idx_nodups, ]
+
+
+# merge lab and field pedons
+vars <- c("peiid", "pedlabsampnum")
+s <- site(fp_bs)[vars]
+vars <- c("peiid", "hzname", "hzdept", "hzdepb", "d_hue", "d_value", "d_chroma", "m_hue", "m_value", "m_chroma")
+h <- horizons(fp_bs)[vars]
+h <- left_join(s, h, by = "peiid")
+
+
+ls <- site(lp)[c("pedon_key", "pedlabsampnum")]
+lh <- horizons(lp)
+lh$pedon_key <- as.character(lh$pedon_key)
+lh <- left_join(ls, lh, by = "pedon_key")
+
+
+lh2 <- left_join(lh, h, by = c("pedlabsampnum" = "pedlabsampnum", "hzn_top" = "hzdept", "hzn_bot" = "hzdepb"))
+
 
 # fix and remove O horizons ----
-h2 <- validate_depths(h, id = "pedon_key", top = "hzn_top", bot = "hzn_bot")
+h2 <- validate_depths(lh2, id = "pedon_key", top = "hzn_top", bot = "hzn_bot")
 
 # bad Os
 idx_bad_o <- unique(subset(h2, ! valid_dep_all & grepl("^O", hzn_desgn))$pedon_key)
@@ -112,60 +163,64 @@ h222 <- validate_depths(h22, id = "pedon_key", top = "hzn_top", bot = "hzn_bot",
 
 # extract 0-25cm
 h222_seg <- segment(h222, intervals = c(0, 25), hzdepcols = c("hzn_top", "hzn_bot"))
+
 idx_max <- aggregate(hzn_top ~ pedon_key, data = h222_seg, FUN = function(x) max(x, na.rm = TRUE) <= 25, na.action = na.pass)
+
 h222_seg <- subset(h222_seg, pedon_key %in% idx_max$pedon_key[idx_max$hzn_top == TRUE])
 
+bs_spc <- h222_seg
+depths(bs_spc) <- pedon_key ~ hzn_top + hzn_bot
+site(bs_spc) <- ~ pedlabsampnum
+site(bs_spc)$peiid <- NULL
+site(bs_spc) <- site(lp)
 
-# build SPC ----
-ldm_bs <- h222_seg
-depths(ldm_bs) <- pedon_key ~ hzn_top + hzn_bot
-site(ldm_bs) <- s
-
-# save(ldm, ldm_bs, file = "G:/Box/Box Sync/data/LDM-compact_20200709.RData")
+# save(bs_spc, file = "C:/workspace2/github/ncss-tech/gsp-bs/bs_spc.RData")
 
 ```
 
 
-# Field pedons
+# Impute Color
 
-```{r field-pedons}
+```{r}
 
-# load pedons
-load(file = "G:/Box/Box Sync/data/LDM-compact_20200709.RData")
-lp <- ldm_bs; rm(ldm_bs)
+load("C:/workspace2/github/ncss-tech/gsp-bs/bs_spc.RData")
 
-load(file = "nasis_pedons_20201112.RData")
-fp <- spc
+# from https://github.com/dylanbeaudette/parse-osd/tree/master/R/models
+load("C:/workspace2/github/ncss-tech/gsp-bs/missing-color-models.rda")
 
+h <- horizons(bs_spc)
+bs_col <- h[grepl("hzID|^d_|^m_", names(h))]
+names(bs_col) <- gsub("d_", "dry_", names(bs_col))
+names(bs_col) <- gsub("m_", "moist_", names(bs_col))
 
-# filter duplicates ----
-s <- site(fp)
-s$classdate <- strptime(s$classdate, "%Y-%M-%d")
-s <- s[order(s$pedlabsampnum, s$classtype, s$classdate, method = "radix", decreasing = c(FALSE, FALSE, TRUE)), ]
-peiid_nodups <- subset(s, ! duplicated(pedlabsampnum))$peiid
+bs_col$dry_value_predict    <- round(predict(m.value.dry, bs_col))
+bs_col$dry_chroma_predict   <- round(predict(m.chroma.dry, bs_col))
+bs_col$moist_value_predict  <- round(predict(m.value.moist, bs_col))
+bs_col$moist_chroma_predict <- round(predict(m.chroma.moist, bs_col))
 
+bs_col2 <- transform(
+  bs_col,
+  # dry
+  dry_hue      = ifelse(is.na(dry_hue),      moist_hue,            dry_hue),
+  dry_value    = ifelse(is.na(dry_value),    dry_value_predict,    dry_value),
+  dry_chroma   = ifelse(is.na(dry_chroma),   dry_chroma_predict,   dry_chroma),
+  # moist
+  moist_hue    = ifelse(is.na(moist_hue),    dry_hue,              moist_hue),
+  moist_value  = ifelse(is.na(moist_value),  moist_value_predict,  moist_value),
+  moist_chroma = ifelse(is.na(moist_chroma), moist_chroma_predict, moist_chroma)
+  )
 
-idx_bs <- which(fp$pedlabsampnum %in% lp$pedlabsampnum & site(fp)$peiid %in% peiid_nodups)
-fp_bs <- fp[idx_bs, ]
+summary(bs_col)
+summary(bs_col2)
 
+names(bs_col2) <- gsub("^dry_",   "d_", names(bs_col2))
+names(bs_col2) <- gsub("^moist_", "m_", names(bs_col2))
 
-# merge lab and field pedons
-vars <- c("peiid", "pedlabsampnum")
-s <- site(fp_bs)[vars]
-vars <- c("peiid", "hzname", "hzdept", "hzdepb", "d_hue", "d_value", "d_chroma", "m_hue", "m_value", "m_chroma")
-h <- horizons(fp_bs)[vars]
-h <- left_join(s, h, by = "peiid")
+bs_col2 <- bs_col2[1:7]
 
-ls <- site(lp)[c("pedon_key", "pedlabsampnum")]
-lh <- horizons(lp)
-lh$pedon_key <- as.character(lh$pedon_key)
-lh <- left_join(ls, lh, by = "pedon_key")
-
-lh2 <- left_join(lh, h, by = c("pedlabsampnum" = "pedlabsampnum", "hzn_top" = "hzdept", "hzn_bot" = "hzdepb"))
-
-
-horizons(lp) <- h
-
+bs_spc2 <- bs_spc
+horizons(bs_spc2)[grepl("^d_|^m_", names(horizons(bs_spc2)))] <- NULL
+horizons(bs_spc2) <- bs_col2
 
 ```
 
@@ -174,6 +229,42 @@ horizons(lp) <- h
 
 ```{r}
 
-test <- allocate(lp, CEC = "cec_nh4_ph_7", BS = "base_sat_nh4oac_ph_7", to = "FAO Black Soil")
+test1 <- allocate(bs_spc, OC = "estimated_organic_carbon", CEC = "cec_nh4_ph_7", BS = "base_sat_nh4oac_ph_7", to = "FAO Black Soil")
+test2 <- allocate(bs_spc2, OC = "estimated_organic_carbon", CEC = "cec_nh4_ph_7", BS = "base_sat_nh4oac_ph_7", to = "FAO Black Soil")
+
+summary(test1)
+summary(test2)
+
+s <- site(bs_spc2)
+s <- merge(s, test2, by.x = "pedon_key", by.y = "peiid", all.x = TRUE)
+
+s_sub <- subset(s, complete.cases(latitude_std_decimal_degrees, longitude_std_decimal_degrees))
+
+s_sf <- st_as_sf(
+  s_sub,
+  coords = c("longitude_std_decimal_degrees", "latitude_std_decimal_degrees"),
+  crs = 4326
+)
+s_sf <- subset(s_sf, !is.na(BS2))
+
+mapview(s_sf, zcol = "BS2")
+
+saveRDS(s_sf, file = "G:/Box/Box Sync/data/bs_training_data.rds")
+
+```
+
+
+```{r}
+
+library(soilDB)
+
+ss <- get_soilseries_from_NASIS()
+ss$soilseriesname <- tolower(gsub("^ | $", "", ss$soilseriesname))
+
+s_sf$corr_name <- tolower(gsub("^ | $", "", s_sf$corr_name))
+
+s_sf <- merge(s_sf, ss, by.x = "corr_name", by.y = "soilseriesname", all.x = TRUE)
+
+
 
 ```

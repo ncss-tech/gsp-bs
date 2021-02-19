@@ -53,7 +53,7 @@
 #' 
 #' test_val <- validate_depths(test)
 #' 
-validate_depths <- function (object, id = "peiid", top = "hzdept", bot = "hzdepb", append_checks = TRUE, pad_bot = FALSE, rmHzErrors = FALSE) {
+validate_depths <- function (object, id = "peiid", top = "hzdept", bot = "hzdepb", append_checks = TRUE, order = FALSE, pad_bot = FALSE, rmHzErrors = FALSE) {
   
   # test inputs ----
   # argument sanity check
@@ -95,7 +95,9 @@ validate_depths <- function (object, id = "peiid", top = "hzdept", bot = "hzdepb
   # df$top  <- as.integer(df$top)
   # df$bot  <- as.integer(df$bot)
   
-  df <- df[order(df$id, df$top, df$bot), ]
+  if (order == TRUE) {
+    df <- df[order(df$id, df$top, df$bot), ]
+  }
   
   
   # pad bot where top == bottom ----
