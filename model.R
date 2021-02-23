@@ -65,7 +65,7 @@ data <- within(data, {
   mlra_rs                  = as.factor(mlra_rs)
   nlcd_2016_conus          = as.factor(nlcd_2016_conus)
 })
-
+data$decade <- floor(data$year * 0.1) * 10
 
 
 # Split data ----
@@ -82,11 +82,16 @@ library(Boruta)
 
 vars <- c(isric_vars, other_vars, ssurgo_vars[c(1, 13, 16)])
 
-data2 <- data[names(data) %in% c("BS2", vars, "train")]
+data2 <- data[names(data) %in% c("BS2", vars, "train", "year")]
+data2$year <- ifelse(is.na(data2$year), mean(data2$year, na.rm = TRUE), data2$year)
 data2 <- na.exclude(data2)
 
 idx <- data2$train == TRUE
-data_fs <- Boruta(x = data2[idx, names(data2) %in% vars], y = data2[idx, "BS2"], maxRuns = 35, doTrace = 1)
+data_fs <- Boruta(x = data2[idx, names(data2) %in% c(vars, "year")], y = data2[idx, "BS2"], maxRuns = 35, doTrace = 1)
+
+# saveRDS(data_fs, file = "G:/Box/Box Sync/data/bs_training_data_fs.rds")
+data_fs <- readRDS(file = "G:/Box/Box Sync/data/bs_training_data_fs.rds")
+
 
 s <- attStats(data_fs)
 s <- data.frame(variable = row.names(s), varImp = s$medianImp, decision = s$decision, stringsAsFactors = FALSE)
@@ -102,10 +107,13 @@ ggplot(s[1:25, ], aes(x = varImp, y = variable)) +
 
 
 
+
 # Train model ----
 
 library(ranger)
 library(caret)
+
+data <- subset(data, decade < 1990)
 
 vars <- c("BS2", as.character(s$variable[c(1:17, 19:26)]))
 td <- na.exclude(data[data$train == TRUE, names(data) %in% vars])
