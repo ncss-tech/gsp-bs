@@ -5,7 +5,7 @@ library(sf)
 library(terra)
 
 
-bs <- readRDS(file = "G:/Box/Box Sync/data/bs_training_data.rds")
+bs <- readRDS(file = "C:/Users/stephen.roecker/OneDrive - USDA/data/bs_training_data_post1997.rds")
 sa <- read_sf("D:/geodata/soils/gSSURGO_CONUS_FY20_july.gdb", layer = "SAPOLYGON")
 sa <- st_transform(sa, crs = 4326)
 
@@ -82,15 +82,14 @@ library(Boruta)
 
 vars <- c(isric_vars, other_vars, ssurgo_vars[c(1, 13, 16)])
 
-data2 <- data[names(data) %in% c("BS2", vars, "train", "year")]
-data2$year <- ifelse(is.na(data2$year), mean(data2$year, na.rm = TRUE), data2$year)
+data2 <- data[names(data) %in% c("BS2", vars, "train")]
 data2 <- na.exclude(data2)
 
 idx <- data2$train == TRUE
-data_fs <- Boruta(x = data2[idx, names(data2) %in% c(vars, "year")], y = data2[idx, "BS2"], maxRuns = 35, doTrace = 1)
+data_fs <- Boruta(x = data2[idx, names(data2) %in% vars], y = data2[idx, "BS2"], maxRuns = 35, doTrace = 1)
 
-# saveRDS(data_fs, file = "G:/Box/Box Sync/data/bs_training_data_fs.rds")
-data_fs <- readRDS(file = "G:/Box/Box Sync/data/bs_training_data_fs.rds")
+# saveRDS(data_fs, file = "C:/Users/stephen.roecker/OneDrive - USDA/data/bs_training_data_fs.rds")
+data_fs <- readRDS(file = "C:/Users/stephen.roecker/OneDrive - USDA/data/bs_training_data_fs.rds")
 
 
 s <- attStats(data_fs)
@@ -113,15 +112,26 @@ ggplot(s[1:25, ], aes(x = varImp, y = variable)) +
 library(ranger)
 library(caret)
 
-data <- subset(data, decade < 1990)
-
-vars <- c("BS2", as.character(s$variable[c(1:17, 19:26)]))
+vars <- c("BS2", as.character(s$variable[c(1:25)]))
 td <- na.exclude(data[data$train == TRUE, names(data) %in% vars])
-td$BS2 <- ifelse(td$BS2 == TRUE, "Yes", "No")
 
 vd <- na.exclude(data[data$train == FALSE, names(data) %in% vars])
-vd$BS2 <- ifelse(vd$BS2 == TRUE, "Yes", "No")
 
+
+# ranger
+bs_train <- ranger(y = td$BS, x = td[-1],
+                   probability = TRUE,
+                   importance = "permutation",
+)
+
+confusionMatrix(table(td$BS2, predict(bs_train, td)$predictions[, 2] > 0.4))
+confusionMatrix(table(vd$BS2, predict(bs_train, vd)$predictions[, 2] > 0.5))
+
+
+# caret
+
+td$BS2 <- ifelse(td$BS2 == TRUE, "Yes", "No")
+vd$BS2 <- ifelse(vd$BS2 == TRUE, "Yes", "No")
 
 bs_train <- train(y = td$BS, x = td[-1],
                   method = "ranger", classification = TRUE,
@@ -139,15 +149,18 @@ confusionMatrix(table(vd$BS2, predict(bs_train, vd)), positive = "Yes")
 
 # Generate map
 
+predfun <- function(model, ...) predict(model, ...)$predictions[, 2]
 predfun <- function(model, ...) predict(model, ...)$predictions
 
 rs2 <- raster::stack(rs)
 names(rs2) <- gsub("_CONUS", "", names(rs2))
 idx <- which(
-  names(rs2) %in% bs_train$finalModel$forest$independent.variable.names
+  names(rs2) %in% bs_train$forest$independent.variable.names
+  # names(rs2) %in% bs_train$finalModel$forest$independent.variable.names
 )
 rs2 <- rs2[[idx]]
 
-bs_r <- predict(rs2, bs_train$finalModel, fun = predfun, index = 1, progress = "text", overwrite = TRUE, filename = "C:/workspace2/test.tif")
+bs_r <- predict(rs2, bs_train, fun = predfun, index = 1, progress = "text", overwrite = TRUE, filename = "C:/workspace2/test_raca.tif")
+# bs_r <- predict(rs, bs_train$finalModel, fun = predfun, index = 1, progress = "text", overwrite = TRUE, filename = "C:/workspace2/test_raca.tif")
 
 

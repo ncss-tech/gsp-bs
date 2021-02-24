@@ -45,7 +45,6 @@ h <- merge(h,
            )
 
 
-
 # site table
 ncss_vars <- c("site_key", "pedon_key", "pedlabsampnum", "pedoniid", "samp_name", "corr_name", "samp_classdate", "corr_classdate")
 site_vars <- c("site_key", "user_site_id", "latitude_std_decimal_degrees", "longitude_std_decimal_degrees")
@@ -88,7 +87,6 @@ View(test <- subset(horizons(ldm_bs), complete.cases(total_carbon_ncs, estimated
 
 test$C <- with(test, round(total_carbon_ncs - caco3_lt_2_mm / 2.274 * 0.272, 1))
 
-
 ```
 
 
@@ -125,7 +123,6 @@ rh <- within(rh, {
   estimated_organic_carbon = ifelse(is.na(estimated_organic_carbon), total_carbon_ncs, estimated_organic_carbon)
   estimated_organic_matter = estimated_organic_carbon * 1.72
 })
-
 
 ```
 
@@ -174,59 +171,69 @@ lh$pedon_key <- as.character(lh$pedon_key)
 lh <- left_join(ls, lh, by = "pedon_key")
 
 
+# some don't join, why???
 lh2 <- left_join(lh, h, by = c("pedlabsampnum" = "pedlabsampnum", "hzn_top" = "hzdept", "hzn_bot" = "hzdepb"))
-lh2 <- lh2[!duplicated(lh2$hzID), ]
+lh2 <- lh2[!duplicated(lh2$hzID) & !is.na(lh2$peiid), ]
+
 
 # merge raca and field pedons
+# some don't join, why???
 rh$hzID <- as.character(1:nrow(rh))
-rh2 <- left_join(rh, h, by = c("usiteid", "upedonid", "rcasiteid", "hzn_top" = "hzdept", "hzn_bot" = "hzdepb"))
-rh2 <- rh2[!duplicated(rh2$hzID), ]
+rh$usiteid <- NULL
+rh2 <- left_join(rh, h, by = c("upedonid", "rcasiteid", "hzn_top" = "hzdept", "hzn_bot" = "hzdepb"))
+rh2 <- rh2[!duplicated(rh2$hzID) & !is.na(rh2$peiid), ]
 
 names(lh2)[!names(lh2) %in% names(rh2)]
 
-names(lh2)[!names(lh2) %in% names(rh2)]
 rh2 <- within(rh2, {
-  pedon_key = NA
-  labsampnum = NA
-  layer_key = NA
-  clay_total = NA
-  silt_total = NA
-  sand_total = NA
-  cec_nh4_ph_7
-  base_sat_nh40ac_ph_7
+  pedon_key    = NA
+  labsampnum   = NA
+  layer_key    = NA
+  clay_total   = NA
+  silt_total   = NA
+  sand_total   = NA
+  cec_nh4_ph_7 = NA
+  base_sat_nh4oac_ph_7 = NA
 })
+
+rh2 <- rh2[names(lh2)]
+
+
+# combine raca and kssl ----
+lh2 <- rbind(lh2, rh2)
 
 
 # fix and remove O horizons ----
 h2 <- validate_depths(lh2, id = "peiid", top = "hzn_top", bot = "hzn_bot")
 
+
 # bad Os
-idx_bad_o <- unique(subset(h2, ! valid_dep_all & grepl("^O", hzn_desgn))$pedon_key)
+idx_bad_o <- unique(subset(h2, ! valid_dep_all & grepl("^O", hzn_desgn))$peiid)
 # View(h2[h2$pedon_key %in% idx_bad_o, ])
 
 h2_bad_o_fix <- h2 %>%
-  filter(pedon_key %in% idx_bad_o) %>%
+  filter(peiid %in% idx_bad_o) %>%
   mutate(thk = abs(hzn_bot - hzn_top)) %>%
-  group_by(pedon_key) %>%
+  group_by(peiid) %>%
   mutate(hzn_top = c(0, cumsum(thk)[-length(thk)]),
          hzn_bot = cumsum(thk)
          ) %>%
   ungroup() %>%
   mutate(thk = NULL)
-h2_good_o <- h2[! h2$pedon_key %in% idx_bad_o, ]
+h2_good_o <- h2[! h2$peiid %in% idx_bad_o, ]
 
 h22 <- rbind(h2_good_o, h2_bad_o_fix)
 h22 <- h22[, !grepl("^valid_", names(h22))]
 
 
 # remove Os
-idx_o <- unique(subset(h22, grepl("^O", hzn_desgn))$pedon_key)
+idx_o <- unique(subset(h22, grepl("^O", hzn_desgn))$peiid)
 
 h22_o <- h22 %>%
-  filter(pedon_key %in% idx_o) %>%
+  filter(peiid %in% idx_o) %>%
   mutate(thk = abs(hzn_bot - hzn_top),
          ) %>%
-  group_by(pedon_key) %>%
+  group_by(peiid) %>%
   # filter top O horizons
   filter(between(row_number() ,grep("^O", hzn_desgn, invert = TRUE)[1], n())) %>%
   mutate(hzn_top = c(0, cumsum(thk)[-length(thk)]),
@@ -235,27 +242,29 @@ h22_o <- h22 %>%
   ungroup() %>%
   mutate(thk = NULL)
 
-h22 <- rbind(h22_o, h22[!h22$pedon_key %in% idx_o, ])
+h22 <- rbind(h22_o, h22[!h22$peiid %in% idx_o, ])
 
 
-h222 <- validate_depths(h22, id = "pedon_key", top = "hzn_top", bot = "hzn_bot", order = TRUE, pad_bot = TRUE, rmHzErrors = TRUE)
+h222 <- validate_depths(h22, id = "peiid", top = "hzn_top", bot = "hzn_bot", order = TRUE, pad_bot = TRUE, rmHzErrors = TRUE)
 
 
 # extract 0-25cm
 h222_seg <- segment(h222, intervals = c(0, 25), hzdepcols = c("hzn_top", "hzn_bot"))
 
-idx_max <- aggregate(hzn_top ~ pedon_key, data = h222_seg, FUN = function(x) max(x, na.rm = TRUE) <= 25, na.action = na.pass)
+idx_max <- aggregate(hzn_top ~ peiid, data = h222_seg, FUN = function(x) max(x, na.rm = TRUE) <= 25, na.action = na.pass)
 
-h222_seg <- subset(h222_seg, pedon_key %in% idx_max$pedon_key[idx_max$hzn_top == TRUE])
+h222_seg <- subset(h222_seg, peiid %in% idx_max$peiid[idx_max$hzn_top == TRUE])
 
 bs_spc <- h222_seg
-depths(bs_spc) <- pedon_key ~ hzn_top + hzn_bot
+depths(bs_spc) <- peiid ~ hzn_top + hzn_bot
+site(bs_spc) <- ~ usiteid
+site(bs_spc) <- ~ upedonid
+site(bs_spc) <- ~ pedon_key
 site(bs_spc) <- ~ pedlabsampnum
 site(bs_spc) <- ~ rcasiteid
-site(bs_spc)$peiid <- NULL
-site(bs_spc) <- site(lp)
+site(bs_spc) <- site(fp)[c("peiid", "x_std", "y_std", "taxonname", "taxonname_recent", "obsdate", "classdate")]
 
-# save(bs_spc, file = "C:/workspace2/github/ncss-tech/gsp-bs/bs_spc.RData")
+# save(bs_spc, file = "C:/Users/stephen.roecker/OneDrive - USDA/data/bs_spc.RData")
 
 ```
 
@@ -266,7 +275,7 @@ site(bs_spc) <- site(lp)
 
 library(rms)
 
-load("C:/workspace2/github/ncss-tech/gsp-bs/bs_spc.RData")
+load("C:/Users/stephen.roecker/OneDrive - USDA/data/bs_spc.RData")
 
 # from https://github.com/dylanbeaudette/parse-osd/tree/master/R/models
 load("C:/workspace2/github/ncss-tech/gsp-bs/missing-color-models.rda")
@@ -321,62 +330,34 @@ summary(test1)
 summary(test2)
 
 s <- site(bs_spc2)
-s <- merge(s, test2, by.x = "pedon_key", by.y = "peiid", all.x = TRUE)
+s <- merge(s, test2, by = "peiid", all.x = TRUE)
 
-s_sub <- subset(s, complete.cases(latitude_std_decimal_degrees, longitude_std_decimal_degrees))
+s_sub <- subset(s, complete.cases(x_std, y_std))
 
 s_sf <- st_as_sf(
   s_sub,
-  coords = c("longitude_std_decimal_degrees", "latitude_std_decimal_degrees"),
+  coords = c("x_std", "y_std"),
   crs = 4326
 )
-s_sf <- subset(s_sf, !is.na(BS2))
+
+s_sf <- within(s_sf, {
+            obsdate    = as.Date(obsdate)
+            classdate  = as.Date(classdate)
+            obs_year   = as.integer(format(obsdate, "%Y"))
+            class_year = as.integer(format(classdate, "%Y"))
+            year       = ifelse(obs_year < class_year, obs_year, class_year)
+            decade     = floor(year * 0.1) * 10
+})
+
+table(decade = s_sf$year, black_soil = s_sf$BS2)
+View(bs_spc@horizons[grepl("pedon_key|hzname|hzn_top|hzn_bot|estimated_organic_carbon|^d_|^m_", horizonNames(bs_spc))])
+
+s_sf <- subset(s_sf, !is.na(BS2) & year >= 1997)
 
 mapview(s_sf, zcol = "BS2")
 
-# saveRDS(s_sf, file = "G:/Box/Box Sync/data/bs_training_data.rds")
+# saveRDS(s_sf, file = "C:/Users/stephen.roecker/OneDrive - USDA/data/bs_training_data_post1997.rds")
+# saveRDS(s_sf, file = "C:/Users/stephen.roecker/OneDrive - USDA/data/bs_training_data_all.rds")
 
 ```
 
-
-# Temporal trends
-
-```{r}
-
-s_sf <- readRDS(file = "G:/Box/Box Sync/data/bs_training_data.rds")
-
-s_sf <- transform(s_sf,
-                  decade   = floor(year * 0.1) * 10,
-                  pedoniid = as.character(pedoniid)
-)
-
-table(decade = data$decade, black_soil = data$BS2)
-
-f_s <- site(fp)[c("peiid", "taxorder")]
-
-s_sub <- s_sf %>% 
-  # left_join(f_s, by = c("pedoniid" = "peiid")) %>%
-  filter(decade >= 1990) # & BS2 == FALSE & taxorder == "mollisols")
-
-mapview::mapview(s_sub, zcol = "BS2")
-
-View(bs_spc@horizons[grepl("pedon_key|hzname|hzn_top|hzn_bot|estimated_organic_carbon|^d_|^m_", horizonNames(bs_spc))])
-
-
-```
-
-
-```{r}
-
-library(soilDB)
-
-ss <- get_soilseries_from_NASIS()
-ss$soilseriesname <- tolower(gsub("^ | $", "", ss$soilseriesname))
-
-s_sf$corr_name <- tolower(gsub("^ | $", "", s_sf$corr_name))
-
-s_sf <- merge(s_sf, ss, by.x = "corr_name", by.y = "soilseriesname", all.x = TRUE)
-
-
-
-```
