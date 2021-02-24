@@ -147,7 +147,7 @@ s <- site(f_us)
 s <- merge(s, h2, by = "cokey", all.x = TRUE)
 
 s2 <- s %>%
-  group_by(mukey, cokey, BS2) %>%
+  group_by(mukey, BS2) %>%
   summarize(pct = comppct_r) %>%
   ungroup() %>%
   arrange(mukey, -pct, -BS2) %>%
