@@ -25,7 +25,7 @@ f_mis <- h
 depths(f_mis) <- cokey ~ hzdept_r + hzdepb_r
 site(f_mis) <- s
 
-f_us <- aqp::union(list(f_us, f_mis))
+f_us <- aqp::combine(list(f_us, f_mis))
 
 # save(f_us, file = "C:/Users/stephen.roecker/OneDrive - USDA/f_us.RData")
 load(file = "C:/Users/stephen.roecker/OneDrive - USDA/f_us.RData")
@@ -146,13 +146,14 @@ h2 <- allocate(object = h, hztop = "hzdept", hzbot = "hzdepb", pedonid = "cokey"
 s <- site(f_us)
 s <- merge(s, h2, by = "cokey", all.x = TRUE)
 
+# compute dominant condition for black soils by mukey
 s2 <- s %>%
   group_by(mukey, BS2) %>%
   summarize(pct = comppct_r) %>%
   ungroup() %>%
   arrange(mukey, -pct, -BS2) %>%
   filter(!duplicated(mukey)) %>%
-  select(- cokey)
+  as.data.frame()
 
 write.csv(s2, file = "ssurgo_black_soils.csv", row.names = FALSE)
 
