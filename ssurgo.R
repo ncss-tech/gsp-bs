@@ -27,6 +27,18 @@ site(f_mis) <- s
 
 f_us <- aqp::combine(list(f_us, f_mis))
 
+
+# duplicated components
+test <- aggregate(comppct_r ~ mukey, data = site(f_us), function(x) sum(x, na.rm = TRUE))
+idx  <- subset(test, comppct_r > 100)$mukey
+
+View(site(f_us)[site(f_us)$mukey %in% idx, ])
+View(mu_us[mu_us$mukey %in% idx, ])
+
+idx <- with(site(f_us), !duplicated(paste(mukey, compname, comppct_r, compkind, localphase, drainagecl, erocl, slope_r)))
+f_us2 <- f_us[which(idx), ]
+
+
 # save(f_us, file = "C:/Users/stephen.roecker/OneDrive - USDA/f_us.RData")
 load(file = "C:/Users/stephen.roecker/OneDrive - USDA/f_us.RData")
 
@@ -99,7 +111,7 @@ osd_bol <- horizons(osd_seg) %>%
   ) %>%
   group_by(id) %>%
   summarize(
-    check  = all(check, )
+    check  = all(check)
   ) %>%
   ungroup() %>%
   as.data.frame()
@@ -124,6 +136,7 @@ osd_bol <- osd_bol %>%
 osd_bol$id <- tolower(osd_bol$id)
 
 f_sub <- segment(f_us, intervals = c(0, 25))
+f_sub$compname <- tolower(f_sub$compname)
 
 vars <- c("cokey", "chkey", "hzdept_r", "hzdepb_r", "om_r", "cec7_r", "sumbases_r")
 h <- horizons(f_sub)[vars]
@@ -146,16 +159,17 @@ h2 <- allocate(object = h, hztop = "hzdept", hzbot = "hzdepb", pedonid = "cokey"
 s <- site(f_us)
 s <- merge(s, h2, by = "cokey", all.x = TRUE)
 
+
 # compute dominant condition for black soils by mukey
 s2 <- s %>%
-  group_by(mukey, BS2) %>%
-  summarize(pct = comppct_r) %>%
+  group_by(mukey) %>%
+  summarize(pct_bs = sum(comppct_r[BS2 == TRUE], na.rm = TRUE) / 100) %>%
   ungroup() %>%
-  arrange(mukey, -pct, -BS2) %>%
-  filter(!duplicated(mukey)) %>%
   as.data.frame()
 
-write.csv(s2, file = "ssurgo_black_soils.csv", row.names = FALSE)
+
+# write.csv(s2, file = "ssurgo_black_soils_v2.csv", row.names = FALSE)
+s2 <- read.csv(file = "ssurgo_black_soils_v2.csv", stringsAsFactors = FALSE)
 
 
 
@@ -164,11 +178,6 @@ write.csv(s2, file = "ssurgo_black_soils.csv", row.names = FALSE)
 library(raster)
 
 
-s2 <- within(s2, {
-  # mukey   = as.integer(mukey)
-  ID   = as.integer(ID)
-  bs      = as.integer(BS2)
-})
 names(s2)[1] <- "ID"
 
 gnatsgo <- "D:/geodata/soils/gnatsgo_fy20_30m.tif"
@@ -191,7 +200,7 @@ r <- raster("D:/geodata/soils/gnatsgo_fy20_1km.tif")
 # rat <- levels(r2)[[1]]
 levels(r) <- as.data.frame(s2)
 
-vars <- c("BS2")[1]
+vars <- c("pct_bs")[1]
 lapply(vars, function(x) {
   cat(x, as.character(Sys.time()), "\n")
   # beginCluster(type = "SOCK")
