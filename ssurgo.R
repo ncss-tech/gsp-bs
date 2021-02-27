@@ -5,15 +5,16 @@ library(dplyr)
 
 # fetch SSURGO ----
 
-f_us <- fetchGDB(dsn ="C:/geodata/soils/gNATSGO_CONUS_FY20.gdb", WHERE = "areasymbol LIKE '%'")
+f_us <- fetchGDB(dsn ="D:/geodata/soils/gNATSGO_CONUS_FY20.gdb", WHERE = "areasymbol LIKE '%'")
 mu_us <- get_mapunit_from_GDB(dsn = "C:/geodata/soils/gNATSGO_CONUS_FY20.gdb", stats = TRUE)
 # save(f_us, mu_us, file = "C:/Users/stephen.roecker/Nextcloud/data/gnatsgo_fy20.RData")
 load(file = "C:/Users/stephen.roecker/Nextcloud/projects/2020_gsp-sas/gnatsgo_fy20.RData")
 
 f_statsgo <- fetchGDB(dsn ="D:/geodata/soils/gNATSGO_CONUS_FY20.gdb", WHERE = "areasymbol = 'US'")
+f_statsgo$mukey <- paste0("STASTGO", f_statsgo$mukey)
+f_statsgo$cokey <- paste0("STASTGO", f_statsgo$cokey)
 
-f_us <- f_us[! f_us$mukey %in% f_statsgo$mukey]
-f_us <- aqp::union(list(f_us, f_statsgo))
+f_us <- aqp::combine(list(f_us, f_statsgo))
 
 missing_mukeys <- mu_us[is.na(mu_us$n_component), "mukey"]
 
