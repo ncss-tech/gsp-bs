@@ -129,7 +129,7 @@ osd_bol <- osd_bol %>%
   )
 
 # write.csv(osd_bol, file = "C:/Users/stephen.roecker/OneDrive - USDA/data/osd_bol.csv", row.names = FALSE)
-
+osd_bol <- read.csv(file = "C:/Users/stephen.roecker/OneDrive - USDA/data/osd_bol.csv")
 
 
 # segment and transform SSURGO ----
@@ -215,3 +215,73 @@ lapply(vars, function(x) {
 })
 
 
+
+# statsgo ----
+
+mu_statsgo <- get_mapunit_from_SDA(WHERE = "areasymbol = 'US'")
+
+mu_statsgo$idx <- rep(1:5, length.out = nrow(mu_statsgo))  
+
+temp <- split(mu_statsgo, mu_statsgo$idx)
+temp <- lapply(temp, function(x) fetchSDA(WHERE = paste0("areasymbol = 'US' AND mukey IN ('", paste(x$mukey, collapse = "', '"), "')"), duplicates = TRUE, childs = FALSE))
+
+f_statsgo <- aqp::combine(temp)
+
+# saveRDS(f_statsgo, file = "f_statsgo.rds")               
+f_statsgo <- readRDS(file = "f_statsgo.rds")
+
+osd_bol <- read.csv(file = "C:/Users/stephen.roecker/OneDrive - USDA/data/osd_bol.csv")
+
+
+# segment
+
+osd_bol$id <- tolower(osd_bol$id)
+
+f_sub <- segment(f_statsgo, intervals = c(0, 25))
+f_sub$compname <- tolower(f_sub$compname)
+
+vars <- c("cokey", "chkey", "hzdept_r", "hzdepb_r", "om_r", "cec7_r", "sumbases_r")
+h <- horizons(f_sub)[vars]
+names(h) <- gsub("_r", "", names(h))
+
+h <- merge(h, site(f_sub)[c("cokey", "compname")], by = "cokey", all.x = TRUE)
+h <- merge(h, osd_bol, by.x = "compname", by.y = "id", all.x = TRUE)
+
+h <- transform(h,
+               BS = sumbases / cec7 * 100,
+               OC = om / 1.724
+               # m_chroma = ifelse(grepl("olls$|^mollic|moll", taxsubgrp), 3, 5),
+               # m_value  = ifelse(grepl("olls$|^mollic|moll", taxsubgrp), 3, 5),
+               # d_value  = ifelse(grepl("olls$|^mollic|moll", taxsubgrp), 5, 6)
+)
+
+h2 <- allocate(object = h, hztop = "hzdept", hzbot = "hzdepb", pedonid = "cokey", BS = "BS", OC = "OC", m_chroma = "m_chroma", m_value = "m_value", d_value = "d_value", to = "FAO Black Soil")
+
+
+s <- site(f_statsgo)
+s$compname <- tolower(s$compname)
+s <- merge(s, h2, by = "cokey", all.x = TRUE)
+s <- merge(s, osd_bol, by.x = "compname", by.y = "id", all.x = TRUE)
+
+
+
+# compute dominant condition for black soils by mukey
+s2 <- s %>%
+  group_by(mukey) %>%
+  summarize(
+    pct_mo = sum(comppct_r[taxorder == "Mollisols"], na.rm = TRUE) / 100,
+    pct_mo_col = sum(comppct_r[taxorder == "Mollisols" & m_chroma <= 3 & m_value <= 3 & d_value <= 5], na.rm = TRUE) / 100
+    # pct_bs = sum(comppct_r[BS2 == TRUE], na.rm = TRUE) / 100
+  ) %>%
+  ungroup() %>%
+  mutate(mukey = as.character(mukey)) %>%
+  as.data.frame()
+
+
+# write.csv(s2, file = "statsgo_black_soils_v2.csv", row.names = FALSE)
+s2 <- read.csv(file = "statsgo_black_soils_v2.csv", stringsAsFactors = FALSE)
+
+
+statsgo_sf <- read_sf("D:/geodata/soils/wss_gsmsoil_US_[2016-10-13]/spatial/gsmsoilmu_a_us.shp")
+statsgo_sf <- left_join(statsgo_sf, s2, by = c("MUKEY" = "mukey"))
+write_sf(statsgo_sf, dsn = "D:/geodata/soils/wss_gsmsoil_US_[2016-10-13]/spatial/gsmsoilmu_a_us_bs.shp")

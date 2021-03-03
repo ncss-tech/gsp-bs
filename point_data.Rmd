@@ -29,7 +29,7 @@ dbDisconnect(con)
 
 
 # horizon table
-chem_vars <- c("labsampnum", "total_carbon_ncs", "estimated_organic_carbon", "cec_nh4_ph_7", "base_sat_nh4oac_ph_7", "caco3_lt_2_mm")
+chem_vars <- c("labsampnum", "total_carbon_ncs", "organic_carbon_walkley_black", "estimated_organic_carbon", "cec_nh4_ph_7", "base_sat_nh4oac_ph_7", "caco3_lt_2_mm")
 phys_vars <- c("labsampnum", "texture_lab", "clay_total", "silt_total", "sand_total", "total_frag_wt_pct_gt_2_mm_ws", "bulk_density_third_bar", "estimated_organic_matter")
 l_vars <- c("labsampnum", "layer_key", "pedon_key", "hzn_desgn", "hzn_top", "hzn_bot")
 
@@ -43,6 +43,25 @@ h <- merge(h,
            by = "labsampnum",
            all.x = TRUE
            )
+
+h <- within(h, {
+  estimated_organic_carbon = ifelse(
+    complete.cases(total_carbon_ncs, caco3_lt_2_mm),
+    round(total_carbon_ncs - caco3_lt_2_mm / 2.274 * 0.272, 1),
+    estimated_organic_carbon
+    )
+  estimated_organic_carbon = ifelse(
+    is.na(estimated_organic_carbon), 
+    total_carbon_ncs,
+    estimated_organic_carbon
+    )
+  estimated_organic_carbon = ifelse(
+    is.na(estimated_organic_carbon),
+    organic_carbon_walkley_black,
+    estimated_organic_carbon
+    )
+  estimated_organic_matter = estimated_organic_carbon * 1.72
+})
 
 
 # site table
@@ -352,9 +371,9 @@ s_sf <- within(s_sf, {
 table(decade = s_sf$year, black_soil = s_sf$BS2)
 View(bs_spc@horizons[grepl("pedon_key|hzname|hzn_top|hzn_bot|estimated_organic_carbon|^d_|^m_", horizonNames(bs_spc))])
 
-s_sf <- subset(s_sf, !is.na(BS2) & year >= 1997)
+s_sf <- subset(s_sf, !is.na(BS2))
 
-mapview(s_sf, zcol = "BS2")
+mapview::mapview(s_sf, zcol = "BS2")
 
 # saveRDS(s_sf, file = "C:/Users/stephen.roecker/OneDrive - USDA/data/bs_training_data_post1997.rds")
 # saveRDS(s_sf, file = "C:/Users/stephen.roecker/OneDrive - USDA/data/bs_training_data_all.rds")
