@@ -6,7 +6,7 @@ library(dplyr)
 # fetch SSURGO ----
 
 f_us <- fetchGDB(dsn ="D:/geodata/soils/gNATSGO_CONUS_FY20.gdb", WHERE = "areasymbol LIKE '%'")
-mu_us <- get_mapunit_from_GDB(dsn = "C:/geodata/soils/gNATSGO_CONUS_FY20.gdb", stats = TRUE)
+mu_us <- get_mapunit_from_GDB(dsn = "D:/geodata/soils/gNATSGO_CONUS_FY20.gdb", stats = TRUE)
 # save(f_us, mu_us, file = "C:/Users/stephen.roecker/Nextcloud/data/gnatsgo_fy20.RData")
 load(file = "C:/Users/stephen.roecker/Nextcloud/projects/2020_gsp-sas/gnatsgo_fy20.RData")
 
@@ -37,7 +37,7 @@ View(site(f_us)[site(f_us)$mukey %in% idx, ])
 View(mu_us[mu_us$mukey %in% idx, ])
 
 idx <- with(site(f_us), !duplicated(paste(mukey, compname, comppct_r, compkind, localphase, drainagecl, erocl, slope_r)))
-f_us2 <- f_us[which(idx), ]
+f_us <- f_us[which(idx), ]
 
 
 # save(f_us, file = "C:/Users/stephen.roecker/OneDrive - USDA/f_us.RData")
@@ -159,12 +159,15 @@ h2 <- allocate(object = h, hztop = "hzdept", hzbot = "hzdepb", pedonid = "cokey"
 
 s <- site(f_us)
 s <- merge(s, h2, by = "cokey", all.x = TRUE)
+s <- merge(s, osd_bol, by.x = "compname", by.y = "id", all.x = TRUE)
 
 
 # compute dominant condition for black soils by mukey
 s2 <- s %>%
   group_by(mukey) %>%
-  summarize(pct_bs = sum(comppct_r[BS2 == TRUE], na.rm = TRUE) / 100) %>%
+  summarize(pct_bs = sum(comppct_r[BS2 == TRUE], na.rm = TRUE) / 100,
+            pct_mo = sum(comppct_r[taxorder == "Mollisols" & m_chroma <= 3 & m_value <= 3 & d_value <= 5], na.rm = TRUE) / 100
+            ) %>%
   ungroup() %>%
   as.data.frame()
 
@@ -183,6 +186,8 @@ names(s2)[1] <- "ID"
 
 gnatsgo <- "D:/geodata/soils/gnatsgo_fy20_30m.tif"
 r <- raster(gnatsgo)
+r2 <- clusterR(r, reclassify, args = list(rcl = s2), progress = "text")
+r2 <- reclassify(r, s2, progress = "text")
 gdalUtils::gdalwarp(
   srcfile = gnatsgo,
   dstfile = gsub("30m.tif", "120m.tif", gnatsgo),
@@ -195,7 +200,7 @@ gdalUtils::gdalwarp(
   overwrite = TRUE
 )
 
-r <- raster("D:/geodata/soils/gnatsgo_fy20_1km.tif")
+r <- raster("D:/geodata/soils/gnatsgo_fy20_120m.tif")
 # r2 <- r[1:100, 1:100, drop = FALSE]
 # r2 <- ratify(r2)
 # rat <- levels(r2)[[1]]
@@ -206,7 +211,7 @@ lapply(vars, function(x) {
   cat(x, as.character(Sys.time()), "\n")
   # beginCluster(type = "SOCK")
   deratify(r, att = x, 
-           filename = paste0("D:/geodata/soils/gnatsgo_fy20_1km_", x, ".tif"),
+           filename = paste0("D:/geodata/soils/gnatsgo_fy20_120m_", x, ".tif"),
            options = c("COMPRESS=DEFLATE"), 
            overwrite = TRUE, progress = "text" 
   )
