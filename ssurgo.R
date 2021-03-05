@@ -159,6 +159,7 @@ h2 <- allocate(object = h, hztop = "hzdept", hzbot = "hzdepb", pedonid = "cokey"
 
 s <- site(f_us)
 s <- merge(s, h2, by = "cokey", all.x = TRUE)
+s$compname <- tolower(s$compname)
 s <- merge(s, osd_bol, by.x = "compname", by.y = "id", all.x = TRUE)
 
 
