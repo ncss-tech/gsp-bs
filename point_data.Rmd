@@ -283,7 +283,7 @@ site(bs_spc) <- ~ pedlabsampnum
 site(bs_spc) <- ~ rcasiteid
 site(bs_spc) <- site(fp)[c("peiid", "x_std", "y_std", "taxonname", "taxonname_recent", "obsdate", "classdate")]
 
-# save(bs_spc, file = "C:/Users/stephen.roecker/OneDrive - USDA/data/bs_spc.RData")
+# save(bs_spc, file = "C:/Users/stephen.roecker/OneDrive - USDA/data/spc_bs.RData")
 
 ```
 
@@ -294,7 +294,7 @@ site(bs_spc) <- site(fp)[c("peiid", "x_std", "y_std", "taxonname", "taxonname_re
 
 library(rms)
 
-load("C:/Users/stephen.roecker/OneDrive - USDA/data/bs_spc.RData")
+load("C:/Users/stephen.roecker/OneDrive - USDA/data/spc_bs.RData")
 
 # from https://github.com/dylanbeaudette/parse-osd/tree/master/R/models
 load("C:/workspace2/github/ncss-tech/gsp-bs/missing-color-models.rda")
@@ -373,7 +373,7 @@ View(bs_spc@horizons[grepl("pedon_key|hzname|hzn_top|hzn_bot|estimated_organic_c
 
 s_sf <- subset(s_sf, !is.na(BS2))
 
-mapview::mapview(s_sf, zcol = "BS2")
+mapview::mapview(s_sf, zcol = "BS1")
 
 # saveRDS(s_sf, file = "C:/Users/stephen.roecker/OneDrive - USDA/data/bs_training_data_post1997.rds")
 # saveRDS(s_sf, file = "C:/Users/stephen.roecker/OneDrive - USDA/data/bs_training_data_all.rds")

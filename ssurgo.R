@@ -40,8 +40,8 @@ idx <- with(site(f_us), !duplicated(paste(mukey, compname, comppct_r, compkind, 
 f_us <- f_us[which(idx), ]
 
 
-# save(f_us, file = "C:/Users/stephen.roecker/OneDrive - USDA/f_us.RData")
-load(file = "C:/Users/stephen.roecker/OneDrive - USDA/f_us.RData")
+# save(f_us, file = "C:/Users/stephen.roecker/OneDrive - USDA/gnatsgo.RData")
+load(file = "C:/Users/stephen.roecker/OneDrive - USDA/data/gnatsgo.RData")
 
 
 
@@ -166,7 +166,8 @@ s <- merge(s, osd_bol, by.x = "compname", by.y = "id", all.x = TRUE)
 # compute dominant condition for black soils by mukey
 s2 <- s %>%
   group_by(mukey) %>%
-  summarize(pct_bs = sum(comppct_r[BS2 == TRUE], na.rm = TRUE) / 100,
+  summarize(pct_bs1 = sum(comppct_r[BS1 == TRUE], na.rm = TRUE) / 100,
+            pct_bs2 = sum(comppct_r[BS2 == TRUE], na.rm = TRUE) / 100,
             pct_mo = sum(comppct_r[taxorder == "Mollisols" & m_chroma <= 3 & m_value <= 3 & d_value <= 5], na.rm = TRUE) / 100
             ) %>%
   ungroup() %>%
@@ -233,8 +234,8 @@ temp <- lapply(temp, function(x) fetchSDA(WHERE = paste0("areasymbol = 'US' AND 
 
 f_statsgo <- aqp::combine(temp)
 
-# saveRDS(f_statsgo, file = "f_statsgo.rds")               
-f_statsgo <- readRDS(file = "f_statsgo.rds")
+# saveRDS(f_statsgo, file = "statsgo.rds")               
+f_statsgo <- readRDS(file = "statsgo.rds")
 
 osd_bol <- read.csv(file = "C:/Users/stephen.roecker/OneDrive - USDA/data/osd_bol.csv")
 
