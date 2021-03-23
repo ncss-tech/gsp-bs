@@ -2,6 +2,8 @@ library(aqp)
 library(soilDB)
 library(dplyr)
 
+setwd("D:/geodata/project_data/gsp-bs/data")
+
 
 # fetch SSURGO ----
 
@@ -40,8 +42,8 @@ idx <- with(site(f_us), !duplicated(paste(mukey, compname, comppct_r, compkind, 
 f_us <- f_us[which(idx), ]
 
 
-# save(f_us, file = "C:/Users/stephen.roecker/OneDrive - USDA/gnatsgo.RData")
-load(file = "C:/Users/stephen.roecker/OneDrive - USDA/data/gnatsgo.RData")
+# save(f_us, file = "gnatsgo.RData")
+load(file = "gnatsgo.RData")
 
 
 
@@ -61,8 +63,8 @@ osd <- {
     return(temp)
   }) ->.;
 }
-# saveRDS(osd, "C:/Users/stephen.roecker/OneDrive - USDA/data/osd.rds")
-osd <- readRDS("C:/Users/stephen.roecker/OneDrive - USDA/data/osd.rds")
+# saveRDS(osd, "osd.rds")
+osd <- readRDS("osd.rds")
 
 
 # tidy
@@ -128,8 +130,8 @@ osd_bol <- osd_bol %>%
     d_value  = 5
   )
 
-# write.csv(osd_bol, file = "C:/Users/stephen.roecker/OneDrive - USDA/data/osd_bol.csv", row.names = FALSE)
-osd_bol <- read.csv(file = "C:/Users/stephen.roecker/OneDrive - USDA/data/osd_bol.csv")
+# write.csv(osd_bol, file = "osd_bol.csv", row.names = FALSE)
+osd_bol <- read.csv(file = "osd_bol.csv")
 
 
 # segment and transform SSURGO ----
@@ -147,14 +149,14 @@ h <- merge(h, site(f_sub)[c("cokey", "compname")], by = "cokey", all.x = TRUE)
 h <- merge(h, osd_bol, by.x = "compname", by.y = "id", all.x = TRUE)
 
 h <- transform(h,
-               BS = sumbases / cec7 * 100,
-               OC = om / 1.724
+               BS  = sumbases / cec7 * 100,
+               OC  = om / 1.724
                # m_chroma = ifelse(grepl("olls$|^mollic|moll", taxsubgrp), 3, 5),
                # m_value  = ifelse(grepl("olls$|^mollic|moll", taxsubgrp), 3, 5),
                # d_value  = ifelse(grepl("olls$|^mollic|moll", taxsubgrp), 5, 6)
                )
 
-h2 <- allocate(object = h, hztop = "hzdept", hzbot = "hzdepb", pedonid = "cokey", BS = "BS", OC = "OC", m_chroma = "m_chroma", m_value = "m_value", d_value = "d_value", to = "FAO Black Soil")
+h2 <- allocate(object = h, hztop = "hzdept", hzbot = "hzdepb", pedonid = "cokey", BS = "BS", OC = "OC", CEC = "cec7", m_chroma = "m_chroma", m_value = "m_value", d_value = "d_value", to = "FAO Black Soil")
 
 
 s <- site(f_us)
@@ -202,23 +204,22 @@ gdalUtils::gdalwarp(
   overwrite = TRUE
 )
 
-r <- raster("D:/geodata/soils/gnatsgo_fy20_120m.tif")
+r <- raster("D:/geodata/soils/gnatsgo_fy20_1km.tif")
 # r2 <- r[1:100, 1:100, drop = FALSE]
 # r2 <- ratify(r2)
 # rat <- levels(r2)[[1]]
 levels(r) <- as.data.frame(s2)
 
-vars <- c("pct_bs")[1]
+vars <- c("pct_bs1", "pct_bs2")
 lapply(vars, function(x) {
   cat(x, as.character(Sys.time()), "\n")
   # beginCluster(type = "SOCK")
   deratify(r, att = x, 
-           filename = paste0("D:/geodata/soils/gnatsgo_fy20_120m_", x, ".tif"),
+           filename = paste0("D:/geodata/project_data/gsp-bs/gnatsgo_fy20_1km_", x, ".tif"),
            options = c("COMPRESS=DEFLATE"), 
            overwrite = TRUE, progress = "text" 
   )
   # endCluster()
-  cat(x, as.character(Sys.time()), "\n")
 })
 
 
@@ -237,7 +238,7 @@ f_statsgo <- aqp::combine(temp)
 # saveRDS(f_statsgo, file = "statsgo.rds")               
 f_statsgo <- readRDS(file = "statsgo.rds")
 
-osd_bol <- read.csv(file = "C:/Users/stephen.roecker/OneDrive - USDA/data/osd_bol.csv")
+osd_bol <- read.csv(file = "osd_bol.csv")
 
 
 # segment
@@ -289,6 +290,6 @@ s2 <- s %>%
 s2 <- read.csv(file = "statsgo_black_soils_v2.csv", stringsAsFactors = FALSE)
 
 
-statsgo_sf <- read_sf("D:/geodata/soils/wss_gsmsoil_US_[2016-10-13]/spatial/gsmsoilmu_a_us.shp")
+statsgo_sf <- read_sf("D:/geodata/project_data/gsp-bs/soils/wss_gsmsoil_US_[2016-10-13]/spatial/gsmsoilmu_a_us.shp")
 statsgo_sf <- left_join(statsgo_sf, s2, by = c("MUKEY" = "mukey"))
-write_sf(statsgo_sf, dsn = "D:/geodata/soils/wss_gsmsoil_US_[2016-10-13]/spatial/gsmsoilmu_a_us_bs.shp")
+write_sf(statsgo_sf, dsn = "D:/geodata/project_data/gsp-bs/gsmsoilmu_a_us_bs.shp")

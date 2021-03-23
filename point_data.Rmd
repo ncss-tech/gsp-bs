@@ -100,7 +100,7 @@ ldm_bs$pedon_key <- as.character(ldm_bs$pedon_key)
 depths(ldm_bs) <- pedon_key ~ hzn_top + hzn_bot
 site(ldm_bs) <- s
 
-# save(ldm, ldm_bs, file = "C:/Users/stephen.roecker/OneDrive - USDA/data/LDM-compact_20200709.RData")
+# save(ldm, ldm_bs, file = "D:/geodata/project_data/gsp-bs/data/LDM-compact_20200709.RData")
 
 View(test <- subset(horizons(ldm_bs), complete.cases(total_carbon_ncs, estimated_organic_carbon) & !is.na(caco3_lt_2_mm) & caco3_lt_2_mm > 0)[c(3:6, 16:17, 20)])
 
@@ -113,8 +113,8 @@ test$C <- with(test, round(total_carbon_ncs - caco3_lt_2_mm / 2.274 * 0.272, 1))
 
 ```{r}
 
-raca_xy <- as.data.frame(readxl::read_excel("C:/Users/stephen.roecker/OneDrive - USDA/data/RaCA_data_summary.xlsx", sheet = "RaCA_xy"))
-raca_h <- as.data.frame(readxl::read_excel("C:/Users/stephen.roecker/OneDrive - USDA/data/RaCA_data_summary.xlsx", sheet = "RaCA_samples_wmodelBD"))
+raca_xy <- as.data.frame(readxl::read_excel("C:/Users/stephen.roecker/OneDrive - USDA/projects/gsp-bs/data/RaCA_data_summary.xlsx", sheet = "RaCA_xy"))
+raca_h <- as.data.frame(readxl::read_excel("C:/Users/stephen.roecker/OneDrive - USDA/projects/gsp-bs/data/RaCA_data_summary.xlsx", sheet = "RaCA_samples_wmodelBD"))
 
 raca_xy <- sf::st_as_sf(
   raca_xy,
@@ -154,7 +154,7 @@ source('C:/workspace2/github/ncss-tech/gsp-bs/validate.R')
 
 
 # load pedons
-load(file = "C:/Users/stephen.roecker/OneDrive - USDA/data/LDM-compact_20200709.RData")
+load(file = "D:/geodata/project_data/gsp-bs/data/LDM-compact_20200709.RData")
 lp <- ldm_bs; rm(ldm_bs)
 
 load(file = "nasis_pedons_20201112.RData")
@@ -213,6 +213,7 @@ rh2 <- within(rh2, {
   sand_total   = NA
   cec_nh4_ph_7 = NA
   base_sat_nh4oac_ph_7 = NA
+  organic_carbon_walkley_black = NA
 })
 
 rh2 <- rh2[names(lh2)]
@@ -283,7 +284,7 @@ site(bs_spc) <- ~ pedlabsampnum
 site(bs_spc) <- ~ rcasiteid
 site(bs_spc) <- site(fp)[c("peiid", "x_std", "y_std", "taxonname", "taxonname_recent", "obsdate", "classdate")]
 
-# save(bs_spc, file = "C:/Users/stephen.roecker/OneDrive - USDA/data/spc_bs.RData")
+# save(bs_spc, file = "D:/geodata/project_data/gsp-bs/data/spc_bs.RData")
 
 ```
 
@@ -294,7 +295,7 @@ site(bs_spc) <- site(fp)[c("peiid", "x_std", "y_std", "taxonname", "taxonname_re
 
 library(rms)
 
-load("C:/Users/stephen.roecker/OneDrive - USDA/data/spc_bs.RData")
+load("D:/geodata/project_data/gsp-bs/data/spc_bs.RData")
 
 # from https://github.com/dylanbeaudette/parse-osd/tree/master/R/models
 load("C:/workspace2/github/ncss-tech/gsp-bs/missing-color-models.rda")
@@ -371,12 +372,11 @@ s_sf <- within(s_sf, {
 table(decade = s_sf$year, black_soil = s_sf$BS2)
 View(bs_spc@horizons[grepl("pedon_key|hzname|hzn_top|hzn_bot|estimated_organic_carbon|^d_|^m_", horizonNames(bs_spc))])
 
-s_sf <- subset(s_sf, !is.na(BS2))
+# s_sf <- subset(s_sf, !is.na(BS2))
 
 mapview::mapview(s_sf, zcol = "BS1")
 
-# saveRDS(s_sf, file = "C:/Users/stephen.roecker/OneDrive - USDA/data/bs_training_data_post1997.rds")
-# saveRDS(s_sf, file = "C:/Users/stephen.roecker/OneDrive - USDA/data/bs_training_data_all.rds")
+# saveRDS(s_sf, file = "D:/geodata/project_data/gsp-bs/data/tdata_bs.rds")
 
 ```
 
