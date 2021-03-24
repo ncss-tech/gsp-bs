@@ -163,8 +163,8 @@ library(caret)
 
 
 # modify BS class to switch
-data$BS <- ifelse(data$BS1 == TRUE, "Yes", "No")
-vars <- c("BS", as.character(bs1_fs$variable[c(1:25)]))
+data$BS <- ifelse(data$BS2 == TRUE, "Yes", "No")
+vars <- c("BS", as.character(bs2_fs$variable[c(1:25)]))
 
 pct <- seq(0.1, 1, 0.1)
 bs_train <- lapply(pct, function(x) {
@@ -193,7 +193,7 @@ bs_train <- lapply(pct, function(x) {
   
   # ranger
   bs_train <- ranger(y = td$BS == "Yes", x = td[names(td) != "BS"],
-                  probability = TRUE, splitrule = "hellinger",
+                  probability = TRUE, # splitrule = "hellinger",
                   importance = "permutation"
                   )
   td$pred <- predict(bs_train, td)$predictions[, 2]
@@ -267,8 +267,8 @@ cm
 library(ggplot2)
 
 ggplot(cm, aes(x = pct)) +
-  geom_line(aes(y = `Pos Pred Value`), col = "red") + 
-  geom_line(aes(y = `Neg Pred Value`), col = "blue") + 
+  geom_line(aes(y = `Precision`), col = "red") + 
+  geom_line(aes(y = `Recall`), col = "blue") + 
   ylim(0, 1) +
   scale_x_continuous(breaks = seq(0, 1, 0.1))
 
@@ -327,6 +327,8 @@ bs_train <- train(y = td$BS, x = td[, names(td) != "BS"],
                     verboseIter = FALSE
                     )
                   )
+
+
 # save(bs_train, file = "bs_train30_ranger.rds")
 # save(bs_train, file = "bs_train30_caret1010.rds")
 
