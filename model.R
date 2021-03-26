@@ -437,16 +437,24 @@ bs_unc <- lapply(i, function(x) {
 })
 # saveRDS(bs_unc, file = "bs1_unc_60.rds")
 # saveRDS(bs_unc, file = "bs2_unc_60.rds")
-# bs_unc <- readRDS(file = "bs1_unc_60.rds")
-# bs_unc <- readRDS(file = "bs2_unc_60.rds")
+# bs1_unc <- readRDS(file = "bs1_unc_60.rds")
+# bs2_unc <- readRDS(file = "bs2_unc_60.rds")
 
+summary(t(sapply(bs1_unc, function(x) x$vd_cm$byClass)))
+summary(t(sapply(bs1_unc, function(x) x$vd_cm$overall)))
+summary(sapply(bs1_unc, function(x) x$D2))
+summary(sapply(bs1_unc, function(x) x$BS))
+sd(t(sapply(bs1_unc, function(x) x$vd_cm$overall["Accuracy"])))
+sd(sapply(bs1_unc, function(x) x$D2))
+sd(sapply(bs1_unc, function(x) x$BS))
 
-summary(t(sapply(bs_unc, function(x) x$vd_cm$byClass)))
-summary(t(sapply(bs_unc, function(x) x$vd_cm$overall)))
-summary(sapply(bs_unc, function(x) x$AUC))
-summary(sapply(bs_unc, function(x) x$D2))
-summary(sapply(bs_unc, function(x) x$BS))
-summary(sapply(bs_unc, function(x) round(x$tjur_d, 2)))
+summary(t(sapply(bs2_unc, function(x) x$vd_cm$overall)))
+summary(sapply(bs2_unc, function(x) x$D2))
+summary(sapply(bs2_unc, function(x) x$BS))
+sd(t(sapply(bs2_unc, function(x) x$vd_cm$overall["Accuracy"])))
+sd(sapply(bs2_unc, function(x) x$D2))
+sd(sapply(bs2_unc, function(x) x$BS))
+
 
 
 

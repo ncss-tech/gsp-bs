@@ -34,7 +34,6 @@ ggsave(gg_bs, file = "pedon_location.png", dpi = 350)
 
 library(tmap)
 library(raster)
-library(stars)
 
 fp <- "D:/geodata/project_data/gsp-bs"
 
@@ -66,6 +65,9 @@ tm_bs1 <- tm_shape(bs1, raster.downsample = FALSE) +
             scale = 0.8
             # inner.margins = c()
             )
+
+
+
 # bs2
 tm_bs2 <- tm_shape(bs2, raster.downsample = FALSE) + 
   tm_raster(breaks = brks, title = "Probability", palette = "Greys") + 
@@ -85,8 +87,31 @@ tmap_save(tm = test, units = "in", width = 6, height = 6, dpi = 300, outer.margi
 
 
 # BS table ----
+brks <- c(0, 0.2, 0.4, 0.5, 0.8, 1)
+brks_ <- paste(brks[-6], "to", brks[-1])
+acres    <- res(bs1)[1] * res(bs2) * 0.0002471
+hectares <- res(bs1)[1] * res(bs2) * 0.0001
 
-dim(bs1)
+bs1_tb <- values(bs1)
+bs1_tb <- cut(bs1_tb, breaks = brks, labels = brks_)
+bs1_tb <- as.data.frame(t(as.matrix(table(bs1_tb))))
+bs2_tb <- values(bs2)
+bs2_tb <- cut(bs2_tb, breaks = brks, labels = brks_)
+bs2_tb <- as.data.frame(t(as.matrix(table(bs2_tb))))
+
+bs_tb <- rbind(bs1_tb, bs2_tb)
+bs_tb
+
+bs_tb_df <- sapply(bs_tb, function(x) {
+  # prettyNum(x * acres, big.mark = ",", scientific = FALSE, digits = 0)
+  paste0(
+    prettyNum(x*hectares/1e6, big.mark = ",", scientific = FALSE, digits = 2), 
+    " ", "(", 
+    prettyNum(x * acres / 1e6, big.mark = ",", scientific = FALSE, digits = 2),
+    ")")
+})
+test <- as.data.frame(bs_tb_df)
+View(test)
 
 
 
