@@ -32,7 +32,7 @@ f_us <- aqp::combine(list(f_us, f_mis))
 
 
 # duplicated components
-test <- aggregate(comppct_r ~ mukey, data = site(f_us), function(x) sum(x, na.rm = TRUE))
+test <- aggregate(comppct_r ~ mukey, data = co_us, function(x) sum(x, na.rm = TRUE))
 idx  <- subset(test, comppct_r > 100)$mukey
 
 View(site(f_us)[site(f_us)$mukey %in% idx, ])
@@ -44,6 +44,82 @@ f_us <- f_us[which(idx), ]
 
 # save(f_us, file = "gnatsgo.RData")
 load(file = "gnatsgo.RData")
+
+
+
+# tally Mollisols ----
+co_us <- get_component_from_GDB(dsn = "D:/geodata/soils/gNATSGO_CONUS_FY20.gdb", WHERE = "compname LIKE '%'", childs = FALSE, stringsAsFactors = TRUE)
+mu_us <- get_mapunit_from_GDB(dsn = "D:/geodata/soils/gNATSGO_CONUS_FY20.gdb", stats = FALSE)
+
+test <- aggregate(comppct_r ~ mukey, data = co_us, function(x) sum(x, na.rm = TRUE))
+idx  <- subset(test, comppct_r > 100)$mukey
+co_us <- co_us[! co_us$mukey %in% idx, ]
+
+subgroups <- c("Mollic|Udollic|Ustollic|Xerollic|Lithic Mollic|Pachic")
+
+co_mol <- co_us %>%
+  # filter(taxorder == "Mollisols") %>%
+  group_by(mukey) %>%
+  summarize(
+    pct_mol  = sum(comppct_r[taxorder == "Mollisols"], na.rm = TRUE),
+    pct_mol2 = sum(comppct_r[grepl(subgroups, taxsubgrp) & taxorder != "Mollisols"], na.rm = TRUE)
+    ) %>%
+  inner_join(mu_us, by = "mukey") %>%
+  mutate(acres_mol  = muacres * pct_mol  / 100,
+         acres_mol2 = muacres * pct_mol2 / 100
+         )
+sum(co_mol$acres_mol, na.rm = TRUE) / sum(mu_us$muacres, na.rm = TRUE)
+sum(co_mol$acres_mol2, na.rm = TRUE) / sum(mu_us$muacres, na.rm = TRUE)
+sum(mu_us$muacres[grepl("^Prime", mu_us$farmlndcl)], na.rm = TRUE) / sum(mu_us$muacres, na.rm = TRUE)
+
+
+# OCONUS
+asym <- c("AS", "FM", "GU", "HI", "MH", "MP", "PR", "PW", "VI")
+co_oconus <- lapply(asym, function(x) {
+  cat("getting ", x, "\n")
+  get_component_from_SDA(WHERE = paste0("areasymbol LIKE '", x, "%'"), childs = FALSE, duplicates = TRUE)
+})
+co_oconus <- do.call("rbind", co_oconus)
+
+mu_oconus <- lapply(asym, function(x) {
+  cat("getting ", x, "\n")
+  get_mapunit_from_SDA(WHERE = paste0("areasymbol LIKE '", x, "%'"))
+})
+mu_oconus <- do.call("rbind", mu_oconus)
+
+co_mol <- co_oconus %>%
+  filter(taxorder == "Mollisols") %>%
+  group_by(mukey) %>%
+  summarize(pct_mol = sum(comppct_r, na.rm = TRUE)) %>%
+  right_join(mu_oconus, by = "mukey") %>%
+  mutate(acres_mol = muacres * pct_mol / 100)
+
+co_mol %>%
+  mutate(asym = substr(areasymbol, 1, 2)) %>%
+  group_by(asym) %>%
+  summarize(pct_mol = round(sum(acres_mol, na.rm = TRUE) / sum(muacres, na.rm = TRUE) * 100))
+
+
+
+# AK
+ak_mukey <- read_sf("D:/geodata/soils/wss_gsmsoil_US_[2016-10-13]/spatial/gsmsoilmu_a_ak.shp")$MUKEY
+
+co_ak <- get_component_from_SDA(WHERE = paste0("mukey IN ('", paste0(ak_mukey, collapse = "', '"), "')"), childs = FALSE, duplicates = TRUE)
+mu_us <- get_mapunit_from_SDA(WHERE = "areasymbol LIKE 'US'")
+mu_ak <- subset(mu_ak, mukey %in% ak_mukey)
+
+
+co_mol <- co_ak %>%
+  filter(taxorder == "Mollisols") %>%
+  group_by(mukey) %>%
+  summarize(pct_mol = sum(comppct_r, na.rm = TRUE)) %>%
+  right_join(mu_ak, by = "mukey") %>%
+  mutate(acres_mol = muacres * pct_mol / 100)
+
+co_mol %>%
+  mutate(asym = substr(areasymbol, 1, 2)) %>%
+  group_by(asym) %>%
+  summarize(pct_mol = round(sum(acres_mol, na.rm = TRUE) / sum(muacres, na.rm = TRUE) * 100))
 
 
 

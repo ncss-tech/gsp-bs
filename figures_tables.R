@@ -216,3 +216,24 @@ table(ldm$chemical$cec_nh4_ph_7_method)
 table(ldm$chemical$base_sat_nh4oac_ph_7)
 
 
+
+# yields ----
+
+library(raster)
+
+yi <- raster("C:/workspace2/corn_yields2020_1000.tif")
+
+fp <- "D:/geodata/project_data/gsp-bs"
+bs1 <- readAll(raster(file.path(fp, "bs1_dsm_mean_mask.tif")))
+bs2 <- readAll(raster(file.path(fp, "bs2_dsm_mean_mask.tif")))
+bs1 <- projectRaster(bs1, crs = "+init=epsg:5070")
+bs2 <- projectRaster(bs2, yi, progress = TRUE)
+
+test <- stack(yi, bs2)
+test2 <- as.data.frame(values(test))
+names(test2) <- c("cy2020", "BS2")
+test2 <- subset(test2, complete.cases(cy2020, BS2))
+idx <- sample(1:nrow(test2), 10000)
+
+
+
