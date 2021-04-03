@@ -220,6 +220,7 @@ table(ldm$chemical$base_sat_nh4oac_ph_7)
 # yields ----
 
 library(raster)
+library(ggplot2)
 
 yi <- raster("C:/workspace2/corn_yields2020_1000.tif")
 
@@ -228,12 +229,30 @@ bs1 <- readAll(raster(file.path(fp, "bs1_dsm_mean_mask.tif")))
 bs2 <- readAll(raster(file.path(fp, "bs2_dsm_mean_mask.tif")))
 bs1 <- projectRaster(bs1, crs = "+init=epsg:5070")
 bs2 <- projectRaster(bs2, yi, progress = TRUE)
+precip <- readAll(raster("D:/geodata/climate/prism/final_MAP_mm_800m.tif"))
+precip <- projectRaster(precip, yi, progress = TRUE)
+temp <- readAll(raster("D:/geodata/climate/prism/final_MAAT_800m.tif"))
+temp <- projectRaster(temp, yi, progress = TRUE)
 
-test <- stack(yi, bs2)
+
+test <- stack(yi, bs2, precip, temp)
 test2 <- as.data.frame(values(test))
-names(test2) <- c("cy2020", "BS2")
+names(test2) <- c("cy2020", "BS2", "precip", "temp")
 test2 <- subset(test2, complete.cases(cy2020, BS2))
-idx <- sample(1:nrow(test2), 10000)
+idx <- sample(1:nrow(test2), 100000)
 
 
+gg_y_bin <- ggplot(test2, aes(x = cy2020, y = BS2)) + 
+  geom_bin2d(show.legend = FALSE) +
+  scale_fill_viridis_c() +
+  xlab("corn yield") +
+  ggtitle("2020 Corn Yield vs BS2")
+gg_y_bp <- ggplot(test2, aes(x = cy2020, y = BS2 > 0.5)) + 
+  geom_boxplot() +
+  xlab("corn yield") +
+  ggtitle("2020 Corn Yield vs BS2")
+gridExtra::grid.arrange(gg_y_bin, gg_y_bp, ncol = 2)
+
+library(quantreg)
+anova(rq(cy2020 ~ BS2 + precip + temp, data = test2))
 
