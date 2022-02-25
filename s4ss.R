@@ -9,6 +9,7 @@ setwd("D:/geodata/project_data/gsp-bs/data")
 bs  <- readRDS(file = "tdata_bs.rds")
 bs2 <- subset(bs, is.na(rcasiteid) & !is.na(pedlabsampnum))
 bs2$rcasiteid <- NULL
+names(bs2)[names(bs2) %in% c("BS1", "BS2")] <- c("bs1_obs", "bs2_obs")
 
 vars <- c(dsm_bs1 = "bs1_dsm_mean.tif",
           dsm_bs2 = "bs2_dsm_mean.tif"
