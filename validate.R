@@ -53,7 +53,7 @@
 #' 
 #' test_val <- validate_depths(test)
 #' 
-validate_depths <- function (object, id = "peiid", top = "hzdept", bot = "hzdepb", append_checks = TRUE, order = FALSE, pad_bot = FALSE, rmHzErrors = FALSE) {
+validate_depths <- function (object, id = "peiid", top = "hzdept", bot = "hzdepb", append_checks = FALSE, order = FALSE, pad_bot = FALSE, rmHzErrors = FALSE) {
   
   # test inputs ----
   # argument sanity check
@@ -173,16 +173,6 @@ validate_depths <- function (object, id = "peiid", top = "hzdept", bot = "hzdepb
   )
   
   
-  if (append_checks == FALSE) {
-    
-    df$valid_dep_order    <- NULL
-    df$valid_dep_diff     <- NULL
-    df$valid_dep_complete <- NULL
-    df$valid_dep_overlap  <- NULL
-    df$valid_dep_all      <- NULL
-  }
-  
-  
   # undo standardization ----
   names(df)[idx_names] <- var_names
   
@@ -191,8 +181,14 @@ validate_depths <- function (object, id = "peiid", top = "hzdept", bot = "hzdepb
   df$NA_dep_bottom <- NULL
   
   
+  
+  if (append_checks == FALSE) {
+    df <- df[c(id, hzid, top, bot, names(df)[grepl("valid_", names(df))])]
+  }
+
+  
   # rebuild SPC
-  if (test_spc) {
+  if (test_spc & append_checks == TRUE) {
     
     horizons(object) <- df[c(id, hzid, "valid_dep_order", "valid_dep_diff", "valid_dep_complete", "valid_dep_overlap", "valid_dep_all")]
   }
@@ -204,4 +200,54 @@ validate_depths <- function (object, id = "peiid", top = "hzdept", bot = "hzdepb
     return(df)
   }
   
+}
+
+
+fix_o_depths <- function(object, id = "peiid", top = "hzdept", bot = "hzdepb", hzname = "hzname", pat = "^O|^\\^O|^\\*O|^\\dO") {
+  
+  test_df  <- inherits(object, 'data.frame')
+  
+  df <- object
+  
+  
+  # more tests
+  stopifnot(is.numeric(df[[top]]) & is.numeric(df[[bot]]))
+  
+  # vars <- c(id = "peiid", top = "hzdept", bot = "hzdepb", hzname = "hzname")
+  var_names <- c(id = id, top = top, bot = bot, hzname = hzname)
+  if (! all(var_names %in% names(df))) {
+    stop("all arguments must match df names")
+  }
+  
+  
+  # standardize df ----
+  idx_names <- sapply(var_names, function(x) which(names(df) == x))
+  names(df)[idx_names] <- names(var_names)
+  df$rn   <- 1:nrow(df)
+  
+  
+  # test horizons
+  test <- validate_depths(object = df, id = "id", top = "top", bot = "bot", order = FALSE, append_checks = FALSE)
+  idx_pat <- grepl(pat, df$hzname)
+  
+  
+  # reverse O horizon depths, subset, and reorder
+  idx <- which(idx_pat & ! test$valid_dep_order)
+  vars <- c("top", "bot")
+  
+  df_sub <- df[idx, ]
+  df_sub[, vars] <- df_sub[, vars] * -1
+  df_sub <- df_sub[order(df_sub$id, df_sub$top, df_sub$bot), ]
+  
+  
+  # check horizon depths ----
+  df_sub <- transform(df_sub, 
+    valid_dep_order = top > bot & top < 0 # should be TRUE
+  )             
+  df_sub$valid_dep_overlap <- with(df_sub,
+    (as.integer(top) == as.integer(c(NA, bot[-nrow(df_sub)]))) == 
+    ifelse(as.character(id) == as.character(c(NA, id[-nrow(df_sub)])), TRUE, NA) # should be TRUE
+  )
+  
+      
 }
