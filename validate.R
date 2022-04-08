@@ -73,6 +73,8 @@ validate_depths <- function (object, id = "peiid", top = "hzdept", bot = "hzdepb
     bot  <- horizonDepths(object)[2]
   } else {
     df <- object
+    hzid <- "hzid"
+    df[hzid] <- 1:nrow(df)
   }
   
   
@@ -251,3 +253,67 @@ fix_o_depths <- function(object, id = "peiid", top = "hzdept", bot = "hzdepb", h
   
       
 }
+
+
+# var_thk ---- 
+collapse <- function(df, vars = NULL, id = "peiid", top = "hzdept", bot = "hzdepb", valid = FALSE) {
+  
+  # test inputs ----
+  # argument sanity check
+  # test_spc <- inherits(object, 'SoilProfileCollection')
+  test_df   <- inherits(df, "data.frame")
+  test_vars <- inherits(vars,   "character")
+  
+  if (is.null(vars)) stop("the vars argument must not be NULL")
+  
+  if (! any(test_df)) {
+    stop("the df argument must be a data.frame, vars a character")
+  }
+  
+  # standardize
+  # id = "peiid"; top = "hzdept"; bot = "hzdepb"
+  var_names <- c(id = id, top = top, bot = bot, vars)
+  if (! all(var_names %in% names(df))) {
+    stop("all arguments must match df names")
+  }
+  
+  
+  # standardize df ----
+  idx_names <- sapply(var_names[1:3], function(x) which(names(df) == x))
+  names(df)[idx_names] <- names(var_names)[1:3]
+  
+  
+  # valid
+  # vd_idx <- validate_depths(df, id = "id", top = "hzdept", bot = "hzdepb")
+  
+  
+  # var thickness ----
+  var_dep <- lapply(vars, function(x) {
+    
+    con_bot <- rle(    paste(df$id, df[, x]))$length
+    con_top <- rle(rev(paste(df$id, df[, x])))$length
+    
+    bot_idx <- cumsum(con_bot)
+    top_idx <- cumsum(con_top)
+    
+    vd <- data.frame(
+      id  = df[bot_idx, "id"],
+      top = rev(rev(df$top)[top_idx]),
+      bot = df[bot_idx, "bot"],
+      var = x,
+      val = df[bot_idx,    x]
+      )
+    
+    return(vd)
+    })
+  var_dep <- do.call("rbind", var_dep)
+  
+  # undo standardization ----
+  names(var_dep)[1:3] <- var_names[1:3]
+  
+  
+  return(var_dep)
+}
+  
+  
+
