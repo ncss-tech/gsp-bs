@@ -255,40 +255,97 @@ fix_o_depths <- function(object, id = "peiid", top = "hzdept", bot = "hzdepb", h
 }
 
 
-# var_thk ---- 
-collapse <- function(df, vars = NULL, id = "peiid", top = "hzdept", bot = "hzdepb", valid = FALSE) {
+#' @title Dissolving horizon boundaries by grouping variables
+#' 
+#' @description This function dissolves or combines horizons share have a common set of grouping variables. It only combines those horizon records that are sequential (e.g. share a horizon boundary). Thus, it can be used to identify discontinuities in the grouping variables along a profile. 
+#'
+#' @param object either a \code{data.frame}
+#' @param by the column names, to be used as grouping variables, within the object.
+#' @param id the column name of the pedon ID within the object.
+#' @param top the column name of the horizon top depth within the object.
+#' @param bot the column name of the horizon bottom depth in the object.
+#' @param order logical: indicating whether or not to order the object by the id, top, and bot columns. 
+#' #' 
+#' @details This function assumes the profiles and horizons within the object follow the logic defined by \code{checkHzDepthLogic} (e.g. records are ordered sequentially by id, top, and bot and without gaps). If the records are not order, set the argument \code{order = TRUE}.
+#'
+#' @return A \code{data.frame} with the original id, by grouping variables, and non-consecutive horizon depths. 
+#' 
+#' @author Stephen Roecker
+#' 
+#' @seealso \code{\link{checkHzDepthLogic}}
+#' 
+#' @export
+#'
+#' @examples
+#' 
+#' # example data
+#' data(jacobs2000)
+#' 
+#' spc <- jacobs2000
+#' 
+#' spc$dep_5 <- spc$depletion_pct >=5
+#' spc$genhz <- generalize.hz(spc$name, c("A", "E", "B", "C"), c("A", "E", "B", "C")) 
+#' 
+#' test <- dissolve_hz(horizons(spc), by = c("genhz", "dep_5"), id = "id", top = "top", bot = "bottom")
+#' 
+
+dissolve_hz <- function(object, by = NULL, collapse = FALSE, id = "peiid", top = "hzdept", bot = "hzdepb", order = FALSE) {
+  
+  # id = "peiid"; top = "hzdept"; bot = "hzdepb"
   
   # test inputs ----
   # argument sanity check
   # test_spc <- inherits(object, 'SoilProfileCollection')
-  test_df   <- inherits(df, "data.frame")
-  test_vars <- inherits(vars,   "character")
   
-  if (is.null(vars)) stop("the vars argument must not be NULL")
-  
-  if (! any(test_df)) {
-    stop("the df argument must be a data.frame, vars a character")
+  # check that object & by are the right class
+  test_object   <- inherits(object,   "data.frame")
+  test_by <- inherits(by, "character")
+
+  if (! any(test_object | test_by)) {
+    stop("the object argument must be a data.frame, and by a character")
   }
   
-  # standardize
-  # id = "peiid"; top = "hzdept"; bot = "hzdepb"
-  var_names <- c(id = id, top = top, bot = bot, vars)
-  if (! all(var_names %in% names(df))) {
-    stop("all arguments must match df names")
+  # check that by is not NULL
+  if (is.null(by)) stop("the by argument must not be NULL")
+
+  # check that collapse is a logical of length 1
+  if (class(collapse) != "logical" & length(collapse) == 1) {
+    stop("the collapse argument must be logical and a length of one")
   }
   
+  # check that the column names exisit within the object
+  var_names <- c(id = id, top = top, bot = bot, by)
+  if (! all(var_names %in% names(object))) {
+    stop("all arguments must match object names")
+  }
   
-  # standardize df ----
+  # check that "by" are characters or convert
+  if (any(! "character" %in% sapply(df[by], class))) {
+    message("non-character grouping variables are being converted to characters")
+    df[by] <- lapply(df[by], as.character)
+  }
+  
+
+  # standardize inputs ----
+  df <- object
   idx_names <- sapply(var_names[1:3], function(x) which(names(df) == x))
   names(df)[idx_names] <- names(var_names)[1:3]
   
-  
   # valid
   # vd_idx <- validate_depths(df, id = "id", top = "hzdept", bot = "hzdepb")
+  if (order == TRUE) {
+    df <- df[order(df$id, df$top, df$bot), ]
+  }
+  
+  if (collapse == TRUE) {
+    by_co <- paste(by, collapse = " & ")
+    df[by_co] <- apply(df[by], 1, paste, collapse = " & ")
+    by    <- by_co
+  }
   
   
   # var thickness ----
-  var_dep <- lapply(vars, function(x) {
+  var_dep <- lapply(by, function(x) {
     
     con_bot <- rle(    paste(df$id, df[, x]))$length
     con_top <- rle(rev(paste(df$id, df[, x])))$length

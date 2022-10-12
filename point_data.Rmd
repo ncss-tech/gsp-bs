@@ -18,7 +18,7 @@ library(aqp)
 library(dplyr)
 
 
-con <- dbConnect(RSQLite::SQLite(), "C:/Users/stephen.roecker/Nextcloud/data/ldm/LDM-compact_20200709.sqlite")
+con <- dbConnect(RSQLite::SQLite(), "C:/Users/stephen.roecker/OneDrive - USDA/data/ldm/LDM-compact_20200709.sqlite")
 # area <- read.csv("C:/Users/stephen.roecker/Nextcloud/data/ldm/lab_area.txt", stringsAsFactors = FALSE)
 # dbCreateTable(con, "area", area)
 (ldm_names <- dbListTables(con))
