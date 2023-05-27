@@ -33,6 +33,7 @@ path <- "D:/geodata/project_data/gsp-sas/1km covariates/ISRIC/CONUS"
 lf <- list.files(path)
 lf <- lf[grepl(".tif$", lf)]
 isric_rs <- stack(file.path(path, lf))
+isric_rs <- rast(file.path(path, lf))
 names(isric_rs) <- gsub("_CONUS.tif|.tif", "", lf)
 isric_vars <- names(isric_rs)
 
@@ -47,6 +48,7 @@ lf <- lf[grepl(".tif$", lf)]
 # idx <- which(other_extent == idx)
 # lf  <- lf[idx]
 other_rs <- stack(file.path(path, lf))
+other_rs <- rast(file.path(path, lf))
 names(other_rs) <- gsub(".tif", "", lf)
 other_vars <- names(other_rs)
 
@@ -61,10 +63,12 @@ lf <- lf[grepl(".tif$", lf)]
 # idx <- which(other_extent == idx)
 # lf  <- lf[idx]
 ssurgo_rs <- stack(file.path(path, lf))
+ssurgo_rs <- rast(file.path(path, lf))
 names(ssurgo_rs) <- gsub(".tif", "", lf)
 ssurgo_vars <- names(ssurgo_rs)
 
 rs <- stack(isric_rs, other_rs, ssurgo_rs)
+rs <- c(isric_rs, other_rs, ssurgo_rs)
 
 
 
@@ -312,7 +316,7 @@ vd <- na.exclude(data[, names(data) %in% vars])
 
 td$BS <- ifelse(td$BS == TRUE, "Yes", "No")
 bs_train <- train(y = td$BS, x = td[, names(td) != "BS"],
-                  method = "ranger", # probability = TRUE,
+                  method = "ranger",  probability = TRUE,
                   importance = "permutation",
                   tuneGrid = expand.grid(
                     min.node.size = 10,
@@ -322,11 +326,20 @@ bs_train <- train(y = td$BS, x = td[, names(td) != "BS"],
                   trControl = trainControl(
                     method = "cv", number = 10, returnResamp = "all", savePredictions = TRUE,
                     # classProbs = TRUE,
-                    summaryFunction = twoClassSummary,
+                     summaryFunction = twoClassSummary,
                     # search = "random",
                     verboseIter = FALSE
                     )
                   )
+bs_train <- ranger(
+  y = as.factor(td$BS), 
+  x = td[, names(td) != "BS"], 
+  probability = TRUE, 
+  importance = "permutation",
+  min.node.size = 10,
+  splitrule     = "gini",
+  mtry          = floor(sqrt(25))
+)
 
 
 # save(bs_train, file = "bs_train30_ranger.rds")
@@ -346,12 +359,14 @@ predfun <- function(model, ...) predict(model, ...)$predictions
 # rs2 <- raster::stack(rs)
 names(rs) <- gsub("_CONUS", "", names(rs))
 idx <- which(
-  names(rs) %in% c("BS2", as.character(s$variable[c(1:25)]))
+  names(rs) %in% c("BS2", as.character(bs1_fs$variable[c(1:25)]))
   # names(rs2) %in% bs_train$finalModel$forest$independent.variable.names
 )
 rs <- rs[[idx]]
 
-bs_r <- predict(rs, bs_train[[6]]$rf, fun = predfun, index = 1, progress = "text", overwrite = TRUE, filename = "D:/geodata/project_data/gsp-bs/bs_dsm_60pct.tif")
+bs_r <- predict(rs, bs_train[[6]]$rf, fun = predfun, index = 1, progress = "text", overwrite = TRUE, filename = "D:/geodata/project_data/gsp-bs/test.tif")
+
+bs_r <- predict(rs, bs_train, fun = predfun, index = 1, progress = "text", overwrite = TRUE, na.rm = TRUE, filename = "D:/geodata/project_data/gsp-bs/test6.tif")
 # bs_r <- predict(rs, bs_train$finalModel, fun = predfun, index = 1, progress = "text", overwrite = TRUE, filename = "D:/geodata/project_data/gsp-bs/test_raca.tif")
 
 image(bs_r > 0.5)
